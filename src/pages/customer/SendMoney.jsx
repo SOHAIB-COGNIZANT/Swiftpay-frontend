@@ -46,6 +46,7 @@ export default function SendMoney() {
   const handleGetQuote = async (e) => {
     e.preventDefault()
     if (!sendAmount || parseFloat(sendAmount) <= 0) { toast.error('Enter a valid amount'); return }
+    if (fromCurrency === toCurrency) { toast.error('From and To currencies must be different'); return }
     setQuoteLoading(true)
     try {
       const res = await fxQuotesAPI.create({
@@ -54,9 +55,10 @@ export default function SendMoney() {
         sendAmount: parseFloat(sendAmount),
       })
       setQuote(res.data)
-      setStep(0.5) // show quote result
+      setStep(0.5)
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to get quote')
+      const msg = err.response?.data?.message || err.response?.data || 'Failed to get quote'
+      toast.error(typeof msg === 'string' ? msg : 'Currency corridor not supported')
     } finally {
       setQuoteLoading(false)
     }
@@ -67,7 +69,7 @@ export default function SendMoney() {
     setLockLoading(true)
     try {
       const res = await rateLocksAPI.create({
-        quoteId: quote.quoteId,
+        quoteId: quote.quoteId,      // camelCase — matches backend response
         customerId: customerProfile.customerId,
       })
       setRateLock(res.data)
@@ -94,8 +96,8 @@ export default function SendMoney() {
         sendAmount: parseFloat(sendAmount),
         receiverAmount: quote?.receiverAmount,
         quoteId: quote?.quoteId,
-        feeApplied: quote?.fee || 0,
-        rateApplied: quote?.offeredRate || 1,
+        feeApplied: quote?.fee ?? 0,
+        rateApplied: quote?.offeredRate ?? 1,
         purposeCode,
         sourceOfFunds,
       })
@@ -170,12 +172,12 @@ export default function SendMoney() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Exchange Rate</span>
                   <span className="font-semibold text-primary-700">
-                    1 {fromCurrency} = {quote.offeredRate} {toCurrency}
+                    1 {fromCurrency} = {quote.offeredRate?.toFixed(4)} {toCurrency}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Fee</span>
-                  <span className="font-medium">{fromCurrency} {quote.fee ?? '—'}</span>
+                  <span className="font-medium">{fromCurrency} {quote.fee != null ? quote.fee.toFixed(2) : '—'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Margin (bps)</span>
@@ -184,7 +186,7 @@ export default function SendMoney() {
                 <div className="border-t border-primary-200 pt-3 flex justify-between">
                   <span className="font-semibold text-gray-700">Recipient Gets</span>
                   <span className="text-xl font-bold text-green-600">
-                    {toCurrency} {quote.receiverAmount?.toFixed(2) ?? '—'}
+                    {toCurrency} {quote.receiverAmount != null ? quote.receiverAmount.toFixed(2) : '—'}
                   </span>
                 </div>
                 <div className="flex gap-3 pt-2">
@@ -286,7 +288,7 @@ export default function SendMoney() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Fee</span>
-                  <span className="font-semibold">{fromCurrency} {quote?.fee ?? '0'}</span>
+                  <span className="font-semibold">{fromCurrency} {quote?.fee != null ? quote.fee.toFixed(2) : '0.00'}</span>
                 </div>
                 <div className="border-t border-gray-200 pt-2 flex justify-between">
                   <span className="font-semibold text-gray-700">Recipient Gets</span>
