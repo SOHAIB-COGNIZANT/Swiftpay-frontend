@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
+import { formatIST, formatISTDate, formatISTTime } from '../../utils/date'
 import { reportsAPI } from '../../api/reports'
 import { remittancesAPI } from '../../api/remittances'
 import Layout from '../../components/layout/Layout'
@@ -61,7 +62,7 @@ export default function Reports() {
   const columns = [
     { key: 'reportId',     label: 'ID',    render: (v) => `#${v}` },
     { key: 'scope',        label: 'Scope' },
-    { key: 'generatedDate',label: 'Date',  render: (v) => new Date(v).toLocaleDateString() },
+    { key: 'generatedDate',label: 'Date',  render: (v) => formatISTDate(v) },
     { key: 'metrics',      label: 'Metrics',render: (v) => <span className="text-xs font-mono truncate max-w-xs block">{v}</span> },
   ]
 

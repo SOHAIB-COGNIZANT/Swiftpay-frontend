@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
+import { formatIST, formatISTDate, formatISTTime } from '../../utils/date'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { customersAPI } from '../../api/customers'
@@ -8,10 +9,11 @@ import Card from '../../components/common/Card'
 import StatusBadge from '../../components/common/StatusBadge'
 import Loader from '../../components/common/Loader'
 import {
-  Send, Users, Bell, TrendingUp, ArrowRight, DollarSign,
-  RefreshCw, CheckCircle, Clock, AlertTriangle
+  Send, Users, Bell, ArrowRight, DollarSign,
+  RefreshCw, CheckCircle, Clock, AlertTriangle, ShieldOff,
 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { isKycVerified } from '../../utils/kyc'
 
 const CHART_DATA = [
   { month: 'Nov', volume: 4200 },
@@ -23,10 +25,12 @@ const CHART_DATA = [
 ]
 
 export default function CustomerDashboard() {
-  const { user, customerProfile } = useAuth()
+  const { user, customerProfile, kyc } = useAuth()
   const [remittances, setRemittances] = useState([])
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
+  const kycVerified = isKycVerified(kyc)
+  const kycStatusLabel = kyc?.verificationStatus ?? 'Not started'
 
   useEffect(() => {
     if (customerProfile?.customerId) {
@@ -51,9 +55,41 @@ export default function CustomerDashboard() {
 
   if (loading) return <Layout><Loader center /></Layout>
 
+  // KYC banner state
+  const banner = !customerProfile?.customerId
+    ? { tone: 'amber', icon: AlertTriangle, title: 'Complete your profile', body: 'Set up your customer profile to begin.', cta: 'Go to Profile' }
+    : !kyc
+    ? { tone: 'amber', icon: ShieldOff, title: 'KYC required', body: 'Submit KYC documents to unlock transactions.', cta: 'Submit KYC' }
+    : kyc.verificationStatus === 'Pending'
+    ? { tone: 'amber', icon: Clock, title: 'KYC under review', body: 'An analyst is verifying your documents. You\'ll be notified once approved.', cta: 'View Status' }
+    : kyc.verificationStatus === 'Rejected'
+    ? { tone: 'red', icon: ShieldOff, title: 'KYC rejected', body: kyc.notes || 'Re-upload corrected documents and resubmit.', cta: 'Resubmit' }
+    : null  // Verified — no banner
+
+  const bannerToneClasses = {
+    amber: 'bg-amber-50 border-amber-200 text-amber-800',
+    red:   'bg-red-50 border-red-200 text-red-800',
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
+        {/* KYC Banner */}
+        {banner && (
+          <div className={`rounded-2xl border p-4 flex flex-col md:flex-row items-start md:items-center gap-4 ${bannerToneClasses[banner.tone]}`}>
+            <div className="flex items-start gap-3 flex-1">
+              <banner.icon size={24} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">{banner.title}</p>
+                <p className="text-sm opacity-90">{banner.body}</p>
+              </div>
+            </div>
+            <Link to="/customer/profile" className="btn-primary flex items-center gap-2 flex-shrink-0">
+              {banner.cta} <ArrowRight size={14} />
+            </Link>
+          </div>
+        )}
+
         {/* Welcome */}
         <div className="gradient-hero rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -61,17 +97,21 @@ export default function CustomerDashboard() {
               Welcome back, {user?.name?.split(' ')[0] || 'Customer'} 👋
             </h1>
             <p className="text-blue-100 mt-1 text-sm">
-              {customerProfile ? `KYC Status: ` : 'Complete your profile to start sending money.'}
-              {customerProfile && (
-                <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs font-medium ml-1">
-                  {customerProfile.verificationStatus || 'Pending'}
-                </span>
-              )}
+              KYC Status:
+              <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium ${kycVerified ? 'bg-green-500/30 text-white' : 'bg-white/20 text-white'}`}>
+                {kycStatusLabel}
+              </span>
             </p>
           </div>
-          <Link to="/customer/send" className="btn-accent flex items-center gap-2 flex-shrink-0">
-            <Send size={16} /> Send Money
-          </Link>
+          {kycVerified ? (
+            <Link to="/customer/send" className="btn-accent flex items-center gap-2 flex-shrink-0">
+              <Send size={16} /> Send Money
+            </Link>
+          ) : (
+            <Link to="/customer/profile" className="btn-accent flex items-center gap-2 flex-shrink-0">
+              <CheckCircle size={16} /> Complete KYC
+            </Link>
+          )}
         </div>
 
         {/* Stats */}
@@ -154,7 +194,7 @@ export default function CustomerDashboard() {
                       <p className="text-sm font-medium text-gray-900">
                         {r.fromCurrency} → {r.toCurrency}
                       </p>
-                      <p className="text-xs text-gray-400">{new Date(r.createdDate).toLocaleDateString()}</p>
+                      <p className="text-xs text-gray-400">{formatISTDate(r.createdDate)}</p>
                     </div>
                   </div>
                   <div className="text-right">

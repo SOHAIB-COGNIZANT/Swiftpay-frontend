@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
+import { formatIST, formatISTDate, formatISTTime } from '../../utils/date'
 import { Link } from 'react-router-dom'
 import { remittancesAPI } from '../../api/remittances'
 import { kycAPI } from '../../api/kyc'
@@ -36,7 +37,7 @@ export default function ComplianceDashboard() {
 
   const heldColumns = [
     { key: 'remitId',    label: 'ID',     render: (v) => `#${v}` },
-    { key: 'createdDate',label: 'Date',   render: (v) => new Date(v).toLocaleDateString() },
+    { key: 'createdDate',label: 'Date',   render: (v) => formatISTDate(v) },
     { key: 'fromCurrency',label: 'Corridor', render: (_, r) => `${r.fromCurrency}→${r.toCurrency}` },
     { key: 'sendAmount', label: 'Amount', render: (v, r) => `${r.fromCurrency} ${v?.toFixed(2)}` },
     { key: 'status',     label: 'Status', render: (v) => <StatusBadge status={v} /> },

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { authAPI } from '../api/auth'
 import { customersAPI } from '../api/customers'
+import { kycAPI } from '../api/kyc'
 
 const AuthContext = createContext(null)
 
@@ -43,18 +44,66 @@ export function AuthProvider({ children }) {
   })
   const [token, setToken]             = useState(() => localStorage.getItem('swiftpay_token'))
   const [customerProfile, setCustomerProfile] = useState(null)
+  const [kyc, setKyc] = useState(null)
   const [loading, setLoading]         = useState(false)
 
   const role = user?.role ?? null
 
-  // Fetch customer profile once logged-in as Customer
+  // Backend JsonNamingPolicy.CamelCase keeps trailing acronyms (CustomerID -> customerID),
+  // so we normalize to consistent camelCase here once.
+  const normalizeCustomer = (raw) => {
+    if (!raw) return null
+    return {
+      ...raw,
+      customerId: raw.customerId ?? raw.customerID,
+      userId:     raw.userId     ?? raw.userID,
+    }
+  }
+  const normalizeKyc = (raw) => {
+    if (!raw) return null
+    return {
+      ...raw,
+      kycId:  raw.kycId  ?? raw.kycID  ?? raw.kycid,
+      userId: raw.userId ?? raw.userID ?? raw.userId,
+    }
+  }
+
+  const refreshCustomerProfile = useCallback(async () => {
+    if (!user?.userId) return null
+    try {
+      const res = await customersAPI.getByUserId(user.userId)
+      const profile = normalizeCustomer(res.data ?? null)
+      setCustomerProfile(profile)
+      return profile
+    } catch {
+      setCustomerProfile(null)
+      return null
+    }
+  }, [user?.userId])
+
+  const refreshKyc = useCallback(async () => {
+    if (!user?.userId) return null
+    try {
+      const res = await kycAPI.getByUser(user.userId)
+      const kycData = normalizeKyc(res.data ?? null)
+      setKyc(kycData)
+      return kycData
+    } catch {
+      setKyc(null)
+      return null
+    }
+  }, [user?.userId])
+
+  // Fetch customer profile + KYC once logged in as Customer
   useEffect(() => {
     if (user?.userId && role === 'Customer') {
-      customersAPI.getByUserId(user.userId)
-        .then((res) => setCustomerProfile(res.data))   // interceptor already unwrapped
-        .catch(() => setCustomerProfile(null))
+      refreshCustomerProfile()
+      refreshKyc()
+    } else {
+      setCustomerProfile(null)
+      setKyc(null)
     }
-  }, [user?.userId, role])
+  }, [user?.userId, role, refreshCustomerProfile, refreshKyc])
 
   const login = useCallback(async (email, password) => {
     setLoading(true)
@@ -110,6 +159,7 @@ export function AuthProvider({ children }) {
     setToken(null)
     setUser(null)
     setCustomerProfile(null)
+    setKyc(null)
   }, [])
 
   const hasRole = useCallback((...roles) => {
@@ -118,7 +168,12 @@ export function AuthProvider({ children }) {
   }, [user])
 
   return (
-    <AuthContext.Provider value={{ user, token, role, customerProfile, loading, login, register, logout, hasRole }}>
+    <AuthContext.Provider value={{
+      user, token, role,
+      customerProfile, refreshCustomerProfile,
+      kyc, refreshKyc,
+      loading, login, register, logout, hasRole,
+    }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
+import { formatIST, formatISTDate, formatISTTime } from '../../utils/date'
 import { remittancesAPI } from '../../api/remittances'
 import { complianceAPI } from '../../api/compliance'
 import { useAuth } from '../../context/AuthContext'
@@ -64,7 +65,7 @@ export default function ComplianceChecks() {
 
   const columns = [
     { key: 'remitId',     label: 'ID',      render: (v) => <span className="font-mono">#{v}</span> },
-    { key: 'createdDate', label: 'Date',    render: (v) => new Date(v).toLocaleDateString() },
+    { key: 'createdDate', label: 'Date',    render: (v) => formatISTDate(v) },
     { key: 'fromCurrency',label: 'Corridor',render: (_, r) => `${r.fromCurrency}→${r.toCurrency}` },
     { key: 'sendAmount',  label: 'Amount',  render: (v, r) => `${r.fromCurrency} ${v?.toFixed(2)}` },
     { key: 'purposeCode', label: 'Purpose' },
@@ -115,7 +116,7 @@ export default function ComplianceChecks() {
                         : <AlertTriangle size={14} className="text-red-500" />}
                       <span className="font-medium">{d.decision}</span>
                       <span className="text-gray-500 flex-1">{d.notes}</span>
-                      <span className="text-xs text-gray-400">{new Date(d.decisionDate).toLocaleDateString()}</span>
+                      <span className="text-xs text-gray-400">{formatISTDate(d.decisionDate)}</span>
                     </div>
                   ))}
                 </div>

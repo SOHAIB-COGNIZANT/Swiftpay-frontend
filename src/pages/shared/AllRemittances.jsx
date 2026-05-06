@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
+import { formatIST, formatISTDate, formatISTTime } from '../../utils/date'
 import { Link } from 'react-router-dom'
 import { remittancesAPI } from '../../api/remittances'
 import Layout from '../../components/layout/Layout'
@@ -42,7 +43,7 @@ export default function AllRemittances({ role }) {
 
   const columns = [
     { key: 'remitId',     label: 'ID',       render: (v) => <span className="font-mono">#{v}</span> },
-    { key: 'createdDate', label: 'Date',     render: (v) => new Date(v).toLocaleDateString() },
+    { key: 'createdDate', label: 'Date',     render: (v) => formatISTDate(v) },
     { key: 'fromCurrency',label: 'Corridor', render: (_, r) => `${r.fromCurrency}→${r.toCurrency}` },
     { key: 'sendAmount',  label: 'Send',     render: (v, r) => `${r.fromCurrency} ${v?.toFixed(2)}` },
     { key: 'receiverAmount',label: 'Receive',render: (v, r) => `${r.toCurrency} ${v?.toFixed(2)}` },

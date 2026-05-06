@@ -1,18 +1,27 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const api = axios.create({
   baseURL: BASE_URL,
-  headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
 })
 
-// Attach JWT token to every request
+// Attach JWT token + sensible Content-Type per request body type
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('swiftpay_token')
     if (token) config.headers.Authorization = `Bearer ${token}`
+
+    // FormData uploads: let the browser set multipart/form-data with the correct boundary.
+    // If we set Content-Type ourselves the boundary is missing and the server can't parse the body.
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      delete config.headers['Content-Type']
+      delete config.headers['content-type']
+    } else if (!config.headers['Content-Type'] && !config.headers['content-type']) {
+      // Default to JSON for everything else (matches old behavior).
+      config.headers['Content-Type'] = 'application/json'
+    }
     return config
   },
   (error) => Promise.reject(error)

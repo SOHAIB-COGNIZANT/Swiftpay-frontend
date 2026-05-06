@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
+import { formatIST, formatISTDate, formatISTTime } from '../../utils/date'
 import { Link } from 'react-router-dom'
 import { usersAPI } from '../../api/users'
 import { remittancesAPI } from '../../api/remittances'
@@ -50,16 +51,16 @@ export default function AdminDashboard() {
 
   const stats = [
     { label: 'Total Users',      value: users.length,       icon: Users,     color: 'text-primary-600', bg: 'bg-primary-50',  path: '/admin/users' },
-    { label: 'Total Remittances',value: remittances.length, icon: FileText,  color: 'text-green-600',   bg: 'bg-green-50',    path: '/admin/users' },
-    { label: 'Pending KYC',      value: pendingKyc.length,  icon: Shield,    color: 'text-amber-600',   bg: 'bg-amber-50',    path: '/admin/users' },
-    { label: 'Compliance Holds', value: remittances.filter((r) => r.status === 'ComplianceHold').length, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50', path: '/admin/users' },
+    { label: 'Total Remittances',value: remittances.length, icon: FileText,  color: 'text-green-600',   bg: 'bg-green-50',    path: '/admin/amendments' },
+    { label: 'Pending KYC',      value: pendingKyc.length,  icon: Shield,    color: 'text-amber-600',   bg: 'bg-amber-50',    path: '/admin/kyc' },
+    { label: 'Compliance Holds', value: remittances.filter((r) => r.status === 'ComplianceHold').length, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50', path: '/admin/amendments' },
   ]
 
   const auditColumns = [
     { key: 'auditId',   label: 'ID',       render: (v) => `#${v}` },
     { key: 'action',    label: 'Action' },
     { key: 'resource',  label: 'Resource' },
-    { key: 'timestamp', label: 'Time',     render: (v) => new Date(v).toLocaleString() },
+    { key: 'timestamp', label: 'Time',     render: (v) => formatIST(v) },
   ]
 
   if (loading) return <Layout><Loader center /></Layout>

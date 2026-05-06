@@ -20,6 +20,7 @@ const NAV_CONFIG = {
   ],
   Agent: [
     { label: 'Dashboard',       path: '/agent/dashboard',       icon: LayoutDashboard },
+    { label: 'Approvals Queue', path: '/agent/approvals',       icon: ClipboardList },
     { label: 'New Transaction', path: '/agent/send',            icon: Send },
     { label: 'Transactions',    path: '/agent/remittances',     icon: FileText },
     { label: 'KYC Capture',     path: '/agent/kyc',             icon: UserCheck },
@@ -52,6 +53,7 @@ const NAV_CONFIG = {
     { label: 'Dashboard',       path: '/admin/dashboard',       icon: LayoutDashboard },
     { label: 'Users',           path: '/admin/users',           icon: Users },
     { label: 'Roles',           path: '/admin/roles',           icon: Shield },
+    { label: 'KYC Review',      path: '/admin/kyc',             icon: UserCheck },
     { label: 'Fee Rules',       path: '/admin/feerules',        icon: DollarSign },
     { label: 'Routing Rules',   path: '/admin/routing',         icon: ArrowLeftRight },
     { label: 'Payout Instructions', path: '/admin/payout',     icon: Send },

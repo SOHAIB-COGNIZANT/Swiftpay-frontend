@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
+import { formatIST, formatISTDate, formatISTTime } from '../../utils/date'
 import { useAuth } from '../../context/AuthContext'
 import { notificationsAPI } from '../../api/notifications'
 import Layout from '../../components/layout/Layout'
@@ -99,7 +100,7 @@ export default function Notifications() {
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-gray-400">{n.category}</span>
                       <span className="text-xs text-gray-400">•</span>
-                      <span className="text-xs text-gray-400">{new Date(n.createdDate).toLocaleString()}</span>
+                      <span className="text-xs text-gray-400">{formatIST(n.createdDate)}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">

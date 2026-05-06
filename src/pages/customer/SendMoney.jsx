@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+﻿import React, { useState, useEffect } from 'react'
+import { formatIST, formatISTDate, formatISTTime } from '../../utils/date'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { fxQuotesAPI } from '../../api/fxquotes'
 import { rateLocksAPI } from '../../api/ratelocks'
 import { beneficiariesAPI } from '../../api/beneficiaries'
 import { remittancesAPI } from '../../api/remittances'
+import { customersAPI } from '../../api/customers'
+import { kycAPI } from '../../api/kyc'
 import Layout from '../../components/layout/Layout'
 import Card from '../../components/common/Card'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
-import { ArrowRight, Lock, RefreshCw, ChevronDown, CheckCircle, AlertCircle } from 'lucide-react'
+import { ArrowRight, Lock, RefreshCw, CheckCircle, AlertCircle, ShieldOff, User as UserIcon, Search } from 'lucide-react'
+import { isKycVerified } from '../../utils/kyc'
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD', 'CAD', 'JPY', 'INR', 'MYR', 'HKD', 'CHF']
 const PURPOSE_CODES = ['Family Remittance', 'Education', 'Medical', 'Business Payment', 'Gift', 'Investment', 'Travel', 'Other']
@@ -18,8 +22,22 @@ const SOURCE_OF_FUNDS = ['Salary', 'Business Income', 'Savings', 'Investment Ret
 const STEPS = ['Get Quote', 'Select Recipient', 'Review & Send']
 
 export default function SendMoney() {
-  const { user, customerProfile } = useAuth()
+  const { user, role, customerProfile, kyc } = useAuth()
   const navigate = useNavigate()
+
+  const isAgent = role === 'Agent'
+
+  // For Agent: which customer they're sending on behalf of
+  const [actingFor, setActingFor] = useState(null)        // customer object (normalized)
+  const [actingForKyc, setActingForKyc] = useState(null)  // their KYC record
+  const [customerOptions, setCustomerOptions] = useState([])
+  const [customerLoading, setCustomerLoading] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState('')
+
+  // Effective customer for the rest of the flow
+  const effectiveCustomer = isAgent ? actingFor : customerProfile
+  const effectiveKyc      = isAgent ? actingForKyc : kyc
+  const effectiveKycOk    = isKycVerified(effectiveKyc)
 
   const [step, setStep] = useState(0)
   const [fromCurrency, setFromCurrency] = useState('USD')
@@ -35,13 +53,54 @@ export default function SendMoney() {
   const [sourceOfFunds, setSourceOfFunds] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // Backend serializes BeneficiaryID -> beneficiaryID, CustomerID -> customerID.
+  // Normalize so .beneficiaryId / .customerId work in lookups and downstream payloads.
+  const normalizeBen = (b) => ({
+    ...b,
+    beneficiaryId: b.beneficiaryId ?? b.beneficiaryID,
+    customerId:    b.customerId    ?? b.customerID,
+  })
+  const normalizeCust = (c) => c && ({
+    ...c,
+    customerId: c.customerId ?? c.customerID,
+    userId:     c.userId     ?? c.userID,
+  })
+
+  // Load all customers for Agent picker (Agent can see Admin/Ops's customer list).
   useEffect(() => {
-    if (customerProfile?.customerId) {
-      beneficiariesAPI.getByCustomer(customerProfile.customerId)
-        .then((r) => setBeneficiaries(Array.isArray(r.data) ? r.data : []))
-        .catch(() => {})
+    if (!isAgent) return
+    setCustomerLoading(true)
+    customersAPI.getAll()
+      .then((r) => {
+        const list = (Array.isArray(r.data) ? r.data : []).map(normalizeCust)
+        setCustomerOptions(list)
+      })
+      .catch(() => setCustomerOptions([]))
+      .finally(() => setCustomerLoading(false))
+  }, [isAgent])
+
+  // When Agent picks a customer, load their KYC + beneficiaries.
+  useEffect(() => {
+    if (!isAgent || !actingFor?.userId) {
+      if (isAgent) setActingForKyc(null)
+      return
     }
-  }, [customerProfile])
+    kycAPI.getByUser(actingFor.userId)
+      .then((r) => {
+        const raw = r.data
+        if (!raw) { setActingForKyc(null); return }
+        setActingForKyc({ ...raw, kycId: raw.kycId ?? raw.kycID ?? raw.kycid })
+      })
+      .catch(() => setActingForKyc(null))
+  }, [isAgent, actingFor?.userId])
+
+  useEffect(() => {
+    const cid = effectiveCustomer?.customerId
+    if (!cid) { setBeneficiaries([]); return }
+    beneficiariesAPI.getByCustomer(cid)
+      .then((r) => setBeneficiaries(Array.isArray(r.data) ? r.data.map(normalizeBen) : []))
+      .catch(() => setBeneficiaries([]))
+  }, [effectiveCustomer?.customerId])
 
   const handleGetQuote = async (e) => {
     e.preventDefault()
@@ -65,46 +124,77 @@ export default function SendMoney() {
   }
 
   const handleLockRate = async () => {
-    if (!quote || !customerProfile) return
+    if (!quote?.quoteId) {
+      toast.error('No active quote — get a quote first')
+      return
+    }
     setLockLoading(true)
     try {
+      // Backend overrides CustomerID from JWT subject; we send a placeholder so
+      // the DTO validates even if the customer has not created a profile yet.
       const res = await rateLocksAPI.create({
-        quoteId: quote.quoteId,      // camelCase — matches backend response
-        customerId: customerProfile.customerId,
+        QuoteID: quote.quoteId,
+        // Backend overrides CustomerID from JWT subject anyway, but DTO validation needs a value.
+        // For Agent: agent's userId is fine (the backend will use the underlying remittance's customer
+        // for downstream data). For Customer: their own customerId / userId.
+        CustomerID: effectiveCustomer?.customerId?.toString()
+                    ?? user?.userId?.toString()
+                    ?? '',
       })
-      setRateLock(res.data)
+      const lockData = res.data ?? res
+      setRateLock(lockData)
       toast.success('Rate locked successfully!')
       setStep(1)
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to lock rate')
+      const msg = err.response?.data?.message
+        ?? err.response?.data
+        ?? err.message
+        ?? 'Failed to lock rate'
+      toast.error(typeof msg === 'string' ? msg : 'Failed to lock rate')
     } finally {
       setLockLoading(false)
     }
   }
 
+  // Reused by both Continue (Step 1 -> 2) and Confirm & Send (Step 2 -> submit).
+  const validateForReview = () => {
+    if (!selectedBeneficiary?.beneficiaryId) { toast.error('Please select a recipient'); return false }
+    if (!purposeCode)   { toast.error('Please select a purpose of remittance'); return false }
+    if (!sourceOfFunds) { toast.error('Please select your source of funds'); return false }
+    return true
+  }
+
   const handleSubmitRemittance = async () => {
-    if (!selectedBeneficiary) { toast.error('Select a recipient'); return }
-    if (!purposeCode) { toast.error('Select purpose of remittance'); return }
-    if (!sourceOfFunds) { toast.error('Select source of funds'); return }
+    if (!validateForReview()) return
     setSubmitting(true)
     try {
       const res = await remittancesAPI.create({
-        customerId: customerProfile.customerId,
-        beneficiaryId: selectedBeneficiary.beneficiaryId,
-        fromCurrency,
-        toCurrency,
-        sendAmount: parseFloat(sendAmount),
-        receiverAmount: quote?.receiverAmount,
-        quoteId: quote?.quoteId,
-        feeApplied: quote?.fee ?? 0,
-        rateApplied: quote?.offeredRate ?? 1,
-        purposeCode,
-        sourceOfFunds,
+        CustomerId: effectiveCustomer.customerId,
+        BeneficiaryId: selectedBeneficiary.beneficiaryId,
+        FromCurrency: fromCurrency,
+        ToCurrency: toCurrency,
+        SendAmount: parseFloat(sendAmount),
+        ReceiverAmount: quote?.receiverAmount,
+        QuoteId: quote?.quoteId,
+        FeeApplied: quote?.fee ?? 0,
+        RateApplied: quote?.offeredRate ?? 1,
+        PurposeCode: purposeCode,
+        SourceOfFunds: sourceOfFunds,
       })
-      toast.success('Remittance submitted successfully!')
-      navigate(`/customer/remittances/${res.data.remitId}`)
+      // Response casing varies — handle both remitId and remitID.
+      const payload = res.data ?? res
+      const remitId = payload?.remitId ?? payload?.remitID
+      toast.success(`Remittance #${remitId ?? ''} submitted! Notification logged.`)
+      if (isAgent) {
+        // Agent's remittance list (no detail page is wired for agents yet).
+        navigate('/agent/remittances')
+      } else if (remitId) {
+        navigate(`/customer/remittances/${remitId}`)
+      } else {
+        navigate('/customer/remittances')
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create remittance')
+      toast.error(err.response?.data?.message || err.response?.data?.error || 'Failed to create remittance')
     } finally {
       setSubmitting(false)
     }
@@ -112,14 +202,132 @@ export default function SendMoney() {
 
   const lockTimeLeft = rateLock ? Math.max(0, Math.round((new Date(rateLock.lockExpiry) - Date.now()) / 60000)) : 0
 
+  // ---- AGENT FLOW: customer picker ----
+  // Agent has no profile/KYC of their own. They must pick a customer to act for.
+  if (isAgent && !actingFor) {
+    const filteredCustomers = customerOptions.filter((c) => {
+      if (!customerSearch) return true
+      const q = customerSearch.toLowerCase()
+      return (
+        String(c.customerId ?? '').includes(q) ||
+        String(c.userId ?? '').includes(q) ||
+        (c.nationality ?? '').toLowerCase().includes(q)
+      )
+    })
+
+    return (
+      <Layout>
+        <div className="max-w-3xl mx-auto space-y-5">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">New Transaction (Agent)</h1>
+            <p className="text-gray-500 text-sm mt-1">Pick the customer you're sending on behalf of</p>
+          </div>
+
+          <Card>
+            <div className="relative mb-4">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text" placeholder="Search by customer ID, user ID, nationality..."
+                value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)}
+                className="form-input pl-9" />
+            </div>
+
+            {customerLoading ? <Loader center /> : filteredCustomers.length === 0 ? (
+              <div className="text-center py-8 text-sm text-gray-400">No customer profiles found.</div>
+            ) : (
+              <ul className="divide-y divide-gray-50 max-h-[480px] overflow-y-auto">
+                {filteredCustomers.map((c) => (
+                  <li key={c.customerId} className="flex items-center gap-3 p-3 hover:bg-primary-50/40 cursor-pointer rounded-lg"
+                    onClick={() => setActingFor(c)}>
+                    <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
+                      <UserIcon size={18} className="text-primary-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">Customer #{c.customerId}</p>
+                      <p className="text-xs text-gray-500">User #{c.userId} • {c.nationality || '—'} • {c.riskRating || '—'}</p>
+                    </div>
+                    <ArrowRight size={14} className="text-gray-300" />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      </Layout>
+    )
+  }
+
+  // ---- KYC gate ----
+  // Customer: their own KYC must be Verified.
+  // Agent: the chosen customer's KYC must be Verified.
+  if (!effectiveKycOk) {
+    const reason = !effectiveCustomer?.customerId
+      ? isAgent
+        ? { title: 'Pick a customer', body: 'Select a customer profile to send money on their behalf.' }
+        : { title: 'Complete your profile', body: 'You need to set up your customer profile before you can send money.' }
+      : !effectiveKyc
+      ? isAgent
+        ? { title: 'Customer has no KYC', body: 'This customer hasn\'t submitted KYC yet — they must do that before you can transact for them.' }
+        : { title: 'KYC required', body: 'Submit your KYC documents to unlock transactions.' }
+      : effectiveKyc.verificationStatus === 'Pending'
+      ? { title: 'KYC under review', body: isAgent
+          ? 'This customer\'s KYC is awaiting compliance review. Please wait for verification.'
+          : 'Your documents have been submitted. An analyst will review and verify shortly.' }
+      : effectiveKyc.verificationStatus === 'Rejected'
+      ? { title: 'KYC rejected', body: effectiveKyc.notes ? `Reason: ${effectiveKyc.notes}.` : 'Documents rejected — must be re-uploaded.' }
+      : { title: 'KYC required', body: 'KYC verification required to transact.' }
+
+    return (
+      <Layout>
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Send Money</h1>
+          <p className="text-gray-500 text-sm mb-6">{isAgent ? 'Acting on behalf of a customer' : 'International transfer in a few simple steps'}</p>
+          <Card>
+            <div className="text-center py-10">
+              <ShieldOff size={48} className="text-amber-400 mx-auto mb-4" />
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">{reason.title}</h2>
+              <p className="text-gray-500 text-sm mb-5 max-w-md mx-auto">{reason.body}</p>
+              {isAgent ? (
+                <button onClick={() => setActingFor(null)} className="btn-primary inline-flex items-center gap-2">
+                  Pick a different customer <ArrowRight size={14} />
+                </button>
+              ) : (
+                <Link to="/customer/profile" className="btn-primary inline-flex items-center gap-2">
+                  Go to Profile & KYC <ArrowRight size={14} />
+                </Link>
+              )}
+            </div>
+          </Card>
+        </div>
+      </Layout>
+    )
+  }
+
   return (
     <Layout>
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Send Money</h1>
-          <p className="text-gray-500 text-sm mt-1">International transfer in a few simple steps</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {isAgent ? 'Acting on behalf of a customer' : 'International transfer in a few simple steps'}
+          </p>
         </div>
+
+        {/* Agent: Acting-for banner */}
+        {isAgent && actingFor && (
+          <div className="rounded-xl border border-primary-100 bg-primary-50/60 p-3 flex items-center gap-3 text-sm">
+            <div className="w-9 h-9 rounded-lg bg-primary-100 flex items-center justify-center">
+              <UserIcon size={16} className="text-primary-700" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900">Acting on behalf of Customer #{actingFor.customerId}</p>
+              <p className="text-xs text-gray-500">User #{actingFor.userId} • KYC: {actingForKyc?.verificationStatus ?? '—'}</p>
+            </div>
+            <button onClick={() => { setActingFor(null); setActingForKyc(null); setStep(0); setQuote(null); setRateLock(null); setSelectedBeneficiary(null) }}
+              className="btn-secondary text-xs py-1.5 px-3">Change customer</button>
+          </div>
+        )}
 
         {/* Stepper */}
         <div className="flex items-center gap-2">
@@ -198,7 +406,7 @@ export default function SendMoney() {
                   </button>
                 </div>
                 <p className="text-xs text-gray-400 text-center">
-                  Rate valid until {quote.validUntil ? new Date(quote.validUntil).toLocaleTimeString() : '—'}
+                  Rate valid until {quote.validUntil ? formatISTTime(quote.validUntil) : '—'}
                 </p>
               </div>
             )}
@@ -263,9 +471,10 @@ export default function SendMoney() {
             </div>
 
             <div className="flex gap-3 mt-4">
-              <button onClick={() => setStep(0)} className="btn-secondary flex-1">Back</button>
+              <button type="button" onClick={() => setStep(0)} className="btn-secondary flex-1">Back</button>
               <button
-                onClick={() => { if (selectedBeneficiary && purposeCode && sourceOfFunds) setStep(2); else toast.error('Fill all required fields') }}
+                type="button"
+                onClick={() => { if (validateForReview()) setStep(2) }}
                 className="btn-primary flex-1 flex items-center justify-center gap-2">
                 Continue <ArrowRight size={15} />
               </button>

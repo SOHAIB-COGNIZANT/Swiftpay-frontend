@@ -17,23 +17,38 @@ import Beneficiaries      from './pages/customer/Beneficiaries'
 import CustomerProfile    from './pages/customer/Profile'
 import Notifications      from './pages/customer/Notifications'
 
+// Agent
+import AgentDashboard      from './pages/agent/Dashboard'
+import AgentApprovals      from './pages/agent/Approvals'
+
 // Compliance
 import ComplianceDashboard from './pages/compliance/Dashboard'
 import KYCReview           from './pages/compliance/KYCReview'
 import ComplianceChecks    from './pages/compliance/ComplianceChecks'
 
 // Operations
-import OpsDashboard   from './pages/operations/Dashboard'
-import Settlement     from './pages/operations/Settlement'
+import OpsDashboard        from './pages/operations/Dashboard'
+import Settlement          from './pages/operations/Settlement'
+import ReconciliationPage  from './pages/operations/Reconciliation'
 
 // Treasury
 import TreasuryDashboard from './pages/treasury/Dashboard'
+import FeeRulesPage      from './pages/treasury/FeeRules'
+import FXQuotesPage      from './pages/treasury/FXQuotes'
+import RateLocksPage     from './pages/treasury/RateLocks'
 
 // Admin
-import AdminDashboard from './pages/admin/Dashboard'
-import AdminUsers     from './pages/admin/Users'
-import AuditLogs      from './pages/admin/AuditLogs'
-import Reports        from './pages/admin/Reports'
+import AdminDashboard       from './pages/admin/Dashboard'
+import AdminUsers           from './pages/admin/Users'
+import AdminRoles           from './pages/admin/Roles'
+import AuditLogs            from './pages/admin/AuditLogs'
+import Reports              from './pages/admin/Reports'
+import RoutingRulesPage     from './pages/admin/RoutingRules'
+import PayoutInstructionsPage from './pages/admin/PayoutInstructions'
+import AmendmentsPage       from './pages/admin/Amendments'
+import CancellationsPage    from './pages/admin/Cancellations'
+import RefundsPage          from './pages/admin/Refunds'
+import AdminSettings        from './pages/admin/Settings'
 
 // Shared
 import AllRemittances from './pages/shared/AllRemittances'
@@ -80,8 +95,9 @@ export default function App() {
       <Route path="/customer/notifications"     element={<RequireAuth allowedRoles={['Customer']}><Notifications /></RequireAuth>} />
 
       {/* Agent */}
-      <Route path="/agent/dashboard"    element={<RequireAuth allowedRoles={['Agent']}><AdminDashboard /></RequireAuth>} />
+      <Route path="/agent/dashboard"    element={<RequireAuth allowedRoles={['Agent']}><AgentDashboard /></RequireAuth>} />
       <Route path="/agent/send"         element={<RequireAuth allowedRoles={['Agent']}><SendMoney /></RequireAuth>} />
+      <Route path="/agent/approvals"    element={<RequireAuth allowedRoles={['Agent']}><AgentApprovals /></RequireAuth>} />
       <Route path="/agent/remittances"  element={<RequireAuth allowedRoles={['Agent']}><AllRemittances role="Agent" /></RequireAuth>} />
       <Route path="/agent/kyc"          element={<RequireAuth allowedRoles={['Agent']}><KYCReview /></RequireAuth>} />
 
@@ -96,34 +112,35 @@ export default function App() {
       <Route path="/ops/dashboard"      element={<RequireAuth allowedRoles={['Ops']}><OpsDashboard /></RequireAuth>} />
       <Route path="/ops/queue"          element={<RequireAuth allowedRoles={['Ops']}><AllRemittances role="Ops" /></RequireAuth>} />
       <Route path="/ops/settlement"     element={<RequireAuth allowedRoles={['Ops']}><Settlement /></RequireAuth>} />
-      <Route path="/ops/reconciliation" element={<RequireAuth allowedRoles={['Ops']}><Settlement /></RequireAuth>} />
-      <Route path="/ops/amendments"     element={<RequireAuth allowedRoles={['Ops']}><AllRemittances role="Ops" /></RequireAuth>} />
-      <Route path="/ops/cancellations"  element={<RequireAuth allowedRoles={['Ops']}><AllRemittances role="Ops" /></RequireAuth>} />
-      <Route path="/ops/refunds"        element={<RequireAuth allowedRoles={['Ops']}><AllRemittances role="Ops" /></RequireAuth>} />
+      <Route path="/ops/reconciliation" element={<RequireAuth allowedRoles={['Ops']}><ReconciliationPage /></RequireAuth>} />
+      <Route path="/ops/amendments"     element={<RequireAuth allowedRoles={['Ops']}><AmendmentsPage /></RequireAuth>} />
+      <Route path="/ops/cancellations"  element={<RequireAuth allowedRoles={['Ops']}><CancellationsPage /></RequireAuth>} />
+      <Route path="/ops/refunds"        element={<RequireAuth allowedRoles={['Ops']}><RefundsPage /></RequireAuth>} />
 
       {/* Treasury */}
       <Route path="/treasury/dashboard"       element={<RequireAuth allowedRoles={['Treasury']}><TreasuryDashboard /></RequireAuth>} />
-      <Route path="/treasury/fxquotes"        element={<RequireAuth allowedRoles={['Treasury']}><TreasuryDashboard /></RequireAuth>} />
-      <Route path="/treasury/feerules"        element={<RequireAuth allowedRoles={['Treasury']}><TreasuryDashboard /></RequireAuth>} />
-      <Route path="/treasury/ratelocks"       element={<RequireAuth allowedRoles={['Treasury']}><TreasuryDashboard /></RequireAuth>} />
+      <Route path="/treasury/fxquotes"        element={<RequireAuth allowedRoles={['Treasury']}><FXQuotesPage /></RequireAuth>} />
+      <Route path="/treasury/feerules"        element={<RequireAuth allowedRoles={['Treasury']}><FeeRulesPage /></RequireAuth>} />
+      <Route path="/treasury/ratelocks"       element={<RequireAuth allowedRoles={['Treasury']}><RateLocksPage /></RequireAuth>} />
       <Route path="/treasury/settlement"      element={<RequireAuth allowedRoles={['Treasury']}><Settlement /></RequireAuth>} />
-      <Route path="/treasury/reconciliation"  element={<RequireAuth allowedRoles={['Treasury']}><Settlement /></RequireAuth>} />
+      <Route path="/treasury/reconciliation"  element={<RequireAuth allowedRoles={['Treasury']}><ReconciliationPage /></RequireAuth>} />
 
       {/* Admin */}
       <Route path="/admin/dashboard"      element={<RequireAuth allowedRoles={['Admin']}><AdminDashboard /></RequireAuth>} />
       <Route path="/admin/users"          element={<RequireAuth allowedRoles={['Admin']}><AdminUsers /></RequireAuth>} />
-      <Route path="/admin/roles"          element={<RequireAuth allowedRoles={['Admin']}><AdminUsers /></RequireAuth>} />
-      <Route path="/admin/feerules"       element={<RequireAuth allowedRoles={['Admin']}><TreasuryDashboard /></RequireAuth>} />
-      <Route path="/admin/routing"        element={<RequireAuth allowedRoles={['Admin']}><AllRemittances role="Admin" /></RequireAuth>} />
-      <Route path="/admin/payout"         element={<RequireAuth allowedRoles={['Admin']}><AllRemittances role="Admin" /></RequireAuth>} />
+      <Route path="/admin/roles"          element={<RequireAuth allowedRoles={['Admin']}><AdminRoles /></RequireAuth>} />
+      <Route path="/admin/kyc"            element={<RequireAuth allowedRoles={['Admin']}><KYCReview /></RequireAuth>} />
+      <Route path="/admin/feerules"       element={<RequireAuth allowedRoles={['Admin']}><FeeRulesPage /></RequireAuth>} />
+      <Route path="/admin/routing"        element={<RequireAuth allowedRoles={['Admin']}><RoutingRulesPage /></RequireAuth>} />
+      <Route path="/admin/payout"         element={<RequireAuth allowedRoles={['Admin']}><PayoutInstructionsPage /></RequireAuth>} />
       <Route path="/admin/settlement"     element={<RequireAuth allowedRoles={['Admin']}><Settlement /></RequireAuth>} />
-      <Route path="/admin/reconciliation" element={<RequireAuth allowedRoles={['Admin']}><Settlement /></RequireAuth>} />
-      <Route path="/admin/amendments"     element={<RequireAuth allowedRoles={['Admin']}><AllRemittances role="Admin" /></RequireAuth>} />
-      <Route path="/admin/cancellations"  element={<RequireAuth allowedRoles={['Admin']}><AllRemittances role="Admin" /></RequireAuth>} />
-      <Route path="/admin/refunds"        element={<RequireAuth allowedRoles={['Admin']}><AllRemittances role="Admin" /></RequireAuth>} />
+      <Route path="/admin/reconciliation" element={<RequireAuth allowedRoles={['Admin']}><ReconciliationPage /></RequireAuth>} />
+      <Route path="/admin/amendments"     element={<RequireAuth allowedRoles={['Admin']}><AmendmentsPage /></RequireAuth>} />
+      <Route path="/admin/cancellations"  element={<RequireAuth allowedRoles={['Admin']}><CancellationsPage /></RequireAuth>} />
+      <Route path="/admin/refunds"        element={<RequireAuth allowedRoles={['Admin']}><RefundsPage /></RequireAuth>} />
       <Route path="/admin/reports"        element={<RequireAuth allowedRoles={['Admin']}><Reports /></RequireAuth>} />
       <Route path="/admin/auditlogs"      element={<RequireAuth allowedRoles={['Admin']}><AuditLogs /></RequireAuth>} />
-      <Route path="/admin/settings"       element={<RequireAuth allowedRoles={['Admin']}><AdminDashboard /></RequireAuth>} />
+      <Route path="/admin/settings"       element={<RequireAuth allowedRoles={['Admin']}><AdminSettings /></RequireAuth>} />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />

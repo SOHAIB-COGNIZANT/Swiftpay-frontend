@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
+import { formatIST, formatISTDate, formatISTTime } from '../../utils/date'
 import { auditLogsAPI } from '../../api/auditlogs'
 import Layout from '../../components/layout/Layout'
 import Card from '../../components/common/Card'
@@ -40,7 +41,7 @@ export default function AuditLogs() {
       }`}>{v}</span>
     )},
     { key: 'resource',  label: 'Resource',  render: (v) => <span className="text-xs font-mono">{v}</span> },
-    { key: 'timestamp', label: 'Timestamp', render: (v) => <span className="text-xs">{new Date(v).toLocaleString()}</span> },
+    { key: 'timestamp', label: 'Timestamp', render: (v) => <span className="text-xs">{formatIST(v)}</span> },
   ]
 
   return (

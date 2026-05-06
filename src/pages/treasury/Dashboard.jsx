@@ -1,101 +1,63 @@
 import React, { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import { feeRulesAPI } from '../../api/feerules'
+import { remittancesAPI } from '../../api/remittances'
 import Layout from '../../components/layout/Layout'
 import Card from '../../components/common/Card'
-import Table from '../../components/common/Table'
-import Modal from '../../components/common/Modal'
-import StatusBadge from '../../components/common/StatusBadge'
 import Loader from '../../components/common/Loader'
-import toast from 'react-hot-toast'
-import { DollarSign, Plus, Edit2, Trash2, Globe, Wallet, TrendingUp } from 'lucide-react'
-
-const EMPTY_FEE = { corridor: '', payoutMode: 'Account', feeType: 'Flat', feeValue: '', minFee: '', maxFee: '', effectiveFrom: '', effectiveTo: '' }
+import { DollarSign, Globe, TrendingUp, Lock, Activity, ArrowRight } from 'lucide-react'
 
 export default function TreasuryDashboard() {
+  const { user } = useAuth()
   const [feeRules, setFeeRules] = useState([])
+  const [remits, setRemits] = useState([])
   const [loading, setLoading] = useState(true)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editItem, setEditItem] = useState(null)
-  const [form, setForm] = useState(EMPTY_FEE)
-  const [saving, setSaving] = useState(false)
 
-  const load = () => {
-    feeRulesAPI.getAll()
-      .then((r) => setFeeRules(Array.isArray(r.data) ? r.data : []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
-
-  const openAdd = () => { setEditItem(null); setForm(EMPTY_FEE); setModalOpen(true) }
-  const openEdit = (r) => { setEditItem(r); setForm({ ...r, effectiveFrom: r.effectiveFrom?.substring(0,10)||'', effectiveTo: r.effectiveTo?.substring(0,10)||'' }); setModalOpen(true) }
-
-  const handleSave = async (e) => {
-    e.preventDefault()
-    setSaving(true)
-    try {
-      const payload = { ...form, feeValue: parseFloat(form.feeValue), minFee: parseFloat(form.minFee)||0, maxFee: parseFloat(form.maxFee)||0 }
-      if (editItem) {
-        await feeRulesAPI.update(editItem.feeRuleId, payload)
-        toast.success('Fee rule updated')
-      } else {
-        await feeRulesAPI.create(payload)
-        toast.success('Fee rule created')
-      }
-      setModalOpen(false)
-      load()
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDelete = async (id) => {
-    if (!confirm('Delete this fee rule?')) return
-    try {
-      await feeRulesAPI.delete(id)
-      toast.success('Deleted')
-      load()
-    } catch { toast.error('Failed to delete') }
-  }
-
-  const columns = [
-    { key: 'feeRuleId',  label: 'ID',        render: (v) => `#${v}` },
-    { key: 'corridor',   label: 'Corridor' },
-    { key: 'payoutMode', label: 'Mode' },
-    { key: 'feeType',    label: 'Type' },
-    { key: 'feeValue',   label: 'Fee',       render: (v, r) => r.feeType === 'Percent' ? `${v}%` : `$${v}` },
-    { key: 'minFee',     label: 'Min',       render: (v) => `$${v}` },
-    { key: 'maxFee',     label: 'Max',       render: (v) => `$${v}` },
-    { key: 'status',     label: 'Status',    render: (v) => <StatusBadge status={v || 'Active'} /> },
-    { key: 'feeRuleId',  label: 'Actions',
-      render: (_, row) => (
-        <div className="flex gap-2">
-          <button onClick={() => openEdit(row)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600"><Edit2 size={13} /></button>
-          <button onClick={() => handleDelete(row.feeRuleId)} className="p-1.5 hover:bg-red-50 rounded text-red-500"><Trash2 size={13} /></button>
-        </div>
-      )
-    },
-  ]
-
-  const stats = [
-    { label: 'Active Fee Rules', value: feeRules.length, icon: DollarSign, color: 'text-primary-600', bg: 'bg-primary-50' },
-    { label: 'Corridors Covered', value: new Set(feeRules.map((f) => f.corridor)).size, icon: Globe, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Avg Fee', value: feeRules.length ? `$${(feeRules.reduce((s,r)=>s+(r.feeValue||0),0)/feeRules.length).toFixed(2)}` : '—', icon: TrendingUp, color: 'text-amber-600', bg: 'bg-amber-50' },
-  ]
+  useEffect(() => {
+    Promise.all([
+      feeRulesAPI.getAll().catch(() => ({ data: [] })),
+      remittancesAPI.getAll().catch(() => ({ data: [] })),
+    ]).then(([f, r]) => {
+      setFeeRules(Array.isArray(f.data) ? f.data : [])
+      const rPayload = r.data ?? r
+      setRemits(Array.isArray(rPayload) ? rPayload : [])
+    }).finally(() => setLoading(false))
+  }, [])
 
   if (loading) return <Layout><Loader center /></Layout>
+
+  const corridors = new Set(feeRules.map((f) => f.corridor))
+  const totalVolume = remits.reduce((s, r) => s + (r.sendAmount || 0), 0)
+  const totalFees = remits.reduce((s, r) => s + (r.feeApplied || 0), 0)
+  const avgFee = feeRules.length ? feeRules.reduce((s, r) => s + (r.feeValue || 0), 0) / feeRules.length : 0
+
+  const stats = [
+    { label: 'Active Fee Rules',  value: feeRules.length,                     icon: DollarSign, color: 'text-primary-600', bg: 'bg-primary-50' },
+    { label: 'Corridors',         value: corridors.size,                      icon: Globe,      color: 'text-green-600',   bg: 'bg-green-50' },
+    { label: 'Avg Configured Fee',value: `$${avgFee.toFixed(2)}`,             icon: TrendingUp, color: 'text-amber-600',   bg: 'bg-amber-50' },
+    { label: 'Volume Processed',  value: `$${(totalVolume/1000).toFixed(1)}K`,icon: Activity,   color: 'text-purple-600',  bg: 'bg-purple-50' },
+  ]
+
+  // Group remit volume by corridor
+  const corridorStats = remits.reduce((acc, r) => {
+    const corr = `${r.fromCurrency}-${r.toCurrency}`
+    if (!acc[corr]) acc[corr] = { count: 0, volume: 0, fees: 0 }
+    acc[corr].count += 1
+    acc[corr].volume += r.sendAmount || 0
+    acc[corr].fees += r.feeApplied || 0
+    return acc
+  }, {})
 
   return (
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Treasury / FX Console</h1>
-          <p className="text-gray-500 text-sm">Manage fee rules, corridor margins, and rate lock policies</p>
+          <h1 className="text-2xl font-bold text-gray-900">Welcome, {user?.name}</h1>
+          <p className="text-gray-500 text-sm">Treasury console — manage fee rules, FX margins, and rate lock policy</p>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {stats.map((s) => {
             const Icon = s.icon
             return (
@@ -110,76 +72,77 @@ export default function TreasuryDashboard() {
           })}
         </div>
 
-        <Card title="Fee Rules"
-          action={
-            <button onClick={openAdd} className="btn-primary flex items-center gap-2 text-sm py-2">
-              <Plus size={14} /> Add Rule
-            </button>
-          }>
-          <Table columns={columns} data={feeRules} loading={false} emptyMessage="No fee rules configured" />
-        </Card>
-      </div>
+        <div className="grid md:grid-cols-2 gap-6">
+          <Card title="Quick Actions">
+            <div className="space-y-2">
+              <Link to="/treasury/feerules" className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 group">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center"><DollarSign size={16} className="text-primary-600" /></div>
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">Manage Fee Rules</p>
+                    <p className="text-xs text-gray-500">Add, edit, or remove corridor fees</p>
+                  </div>
+                </div>
+                <ArrowRight size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
+              </Link>
+              <Link to="/treasury/fxquotes" className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 group">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center"><TrendingUp size={16} className="text-green-600" /></div>
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">FX Quote Console</p>
+                    <p className="text-xs text-gray-500">Preview live quotes & lookup history</p>
+                  </div>
+                </div>
+                <ArrowRight size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
+              </Link>
+              <Link to="/treasury/ratelocks" className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 group">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center"><Lock size={16} className="text-amber-600" /></div>
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">Rate Lock Inspector</p>
+                    <p className="text-xs text-gray-500">Look up customer rate locks by ID</p>
+                  </div>
+                </div>
+                <ArrowRight size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
+              </Link>
+              <Link to="/treasury/settlement" className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 group">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center"><Activity size={16} className="text-purple-600" /></div>
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">Settlement Batches</p>
+                    <p className="text-xs text-gray-500">Generate batches by corridor & period</p>
+                  </div>
+                </div>
+                <ArrowRight size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
+              </Link>
+            </div>
+          </Card>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)}
-        title={editItem ? 'Edit Fee Rule' : 'Add Fee Rule'} size="lg">
-        <form onSubmit={handleSave} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Corridor *</label>
-              <input required value={form.corridor} onChange={(e) => setForm((f) => ({ ...f, corridor: e.target.value }))}
-                className="form-input" placeholder="USD-INR" />
-            </div>
-            <div>
-              <label className="form-label">Payout Mode</label>
-              <select value={form.payoutMode} onChange={(e) => setForm((f) => ({ ...f, payoutMode: e.target.value }))} className="form-select">
-                {['Account', 'CashPickup', 'MobileWallet'].map((m) => <option key={m}>{m}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Fee Type</label>
-              <select value={form.feeType} onChange={(e) => setForm((f) => ({ ...f, feeType: e.target.value }))} className="form-select">
-                {['Flat', 'Percent', 'Tiered'].map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Fee Value *</label>
-              <input type="number" step="0.01" required value={form.feeValue}
-                onChange={(e) => setForm((f) => ({ ...f, feeValue: e.target.value }))}
-                className="form-input" placeholder="2.50" />
-            </div>
-            <div>
-              <label className="form-label">Min Fee</label>
-              <input type="number" step="0.01" value={form.minFee}
-                onChange={(e) => setForm((f) => ({ ...f, minFee: e.target.value }))}
-                className="form-input" placeholder="1.00" />
-            </div>
-            <div>
-              <label className="form-label">Max Fee</label>
-              <input type="number" step="0.01" value={form.maxFee}
-                onChange={(e) => setForm((f) => ({ ...f, maxFee: e.target.value }))}
-                className="form-input" placeholder="50.00" />
-            </div>
-            <div>
-              <label className="form-label">Effective From</label>
-              <input type="date" value={form.effectiveFrom}
-                onChange={(e) => setForm((f) => ({ ...f, effectiveFrom: e.target.value }))}
-                className="form-input" />
-            </div>
-            <div>
-              <label className="form-label">Effective To</label>
-              <input type="date" value={form.effectiveTo}
-                onChange={(e) => setForm((f) => ({ ...f, effectiveTo: e.target.value }))}
-                className="form-input" />
-            </div>
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary flex-1">
-              {saving ? 'Saving...' : editItem ? 'Update' : 'Create'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+          <Card title="Volume by Corridor"
+            action={<Link to="/treasury/feerules" className="text-sm text-primary-600 hover:underline">Edit fees</Link>}>
+            {Object.keys(corridorStats).length === 0 ? (
+              <div className="py-10 text-center text-gray-400 text-sm">
+                No remittance volume yet
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {Object.entries(corridorStats)
+                  .sort((a, b) => b[1].volume - a[1].volume)
+                  .slice(0, 8)
+                  .map(([corr, data]) => (
+                    <li key={corr} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                      <div>
+                        <p className="font-medium text-gray-900 text-sm font-mono">{corr}</p>
+                        <p className="text-xs text-gray-500">{data.count} txns • Fees ${data.fees.toFixed(2)}</p>
+                      </div>
+                      <span className="font-semibold text-gray-900">${data.volume.toFixed(2)}</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      </div>
     </Layout>
   )
 }
