@@ -97,7 +97,6 @@ export default function Login() {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="form-label mb-0">Password</label>
-                  <a href="#" className="text-xs text-primary-600 hover:underline">Forgot password?</a>
                 </div>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -122,12 +121,14 @@ export default function Login() {
             </p>
           </div>
 
-          {/* Demo credentials hint */}
-          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-            <p className="font-semibold mb-1">Demo Admin Credentials</p>
-            <p>Email: <span className="font-mono">admin@swiftpay.local</span></p>
-            <p>Password: <span className="font-mono">MySecretPassword123!</span></p>
-          </div>
+          {/* Demo credentials hint - dev only */}
+          {import.meta.env.DEV && (
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+              <p className="font-semibold mb-1">Demo Admin Credentials (dev)</p>
+              <p>Email: <span className="font-mono">admin@swiftpay.local</span></p>
+              <p>Password: <span className="font-mono">MySecretPassword123!</span></p>
+            </div>
+          )}
         </div>
       </div>
     </div>
